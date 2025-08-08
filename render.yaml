@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: pos-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: POS_API_KEY
+        value: pos_secret_key
+      - key: CRM_API_KEY
+        value: mysecretkey
+      - key: CRM_BASE_URL
+        value: https://crm-n577.onrender.com
+      - key: DATABASE_URL
+        value: postgresql://demo_db_wmet_user:lfxvuYWFNbZ946wSCwWijJO3OKS2BDSm@dpg-d2113iemcj7s73ea3bgg-a.oregon-postgres.render.com/demo_db_wmet 
