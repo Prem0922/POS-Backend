@@ -341,6 +341,26 @@ async def simulate_card_tap(
 async def health_check():
     return {"status": "healthy", "service": "POS Backend", "timestamp": datetime.utcnow().isoformat()}
 
+# Test CRM connectivity endpoint
+@app.get("/test-crm-connection")
+async def test_crm_connection():
+    """Test connection to CRM backend"""
+    try:
+        # Test basic connectivity
+        result = make_crm_request("/health", "GET")
+        return {
+            "status": "success",
+            "message": "CRM connection successful",
+            "crm_response": result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"CRM connection failed: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 # Root endpoint
 @app.get("/")
 async def root():
