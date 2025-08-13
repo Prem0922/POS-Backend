@@ -2,14 +2,11 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
 import os
 import requests
-import bcrypt
-import jwt
 from dotenv import load_dotenv
-from pydantic import BaseModel, EmailStr
 
 from database import SessionLocal, engine
 from models import Base
@@ -43,26 +40,6 @@ app.include_router(router, prefix="/api")
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://crm-n577.onrender.com")
 CRM_API_KEY = os.getenv("CRM_API_KEY", "mysecretkey")
 
-# JWT Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "pos-secret-key-here")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Authentication Models
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    name: str
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    user_name: str
-
 # Standard response model for POS API
 class StandardResponse:
     def __init__(self, status: str, message: str, data: Optional[dict] = None, robotRunId: Optional[str] = None):
@@ -91,23 +68,6 @@ def get_db():
     finally:
         db.close()
 
-# Authentication helper functions
-def hash_password(password: str) -> str:
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
 # API Key authentication
 API_KEY = os.getenv("POS_API_KEY", "pos_secret_key")
 
@@ -115,74 +75,6 @@ async def verify_api_key(x_api_key: str = Header(...)):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return x_api_key
-
-# Authentication Endpoints
-@app.post("/auth/signup", response_model=Token)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
-    """User signup endpoint"""
-    try:
-        # Check if user already exists by calling CRM backend
-        existing_user_response = requests.get(
-            f"{CRM_BASE_URL}/auth/check-user/{user.email}",
-            headers={"x-api-key": CRM_API_KEY}
-        )
-        
-        if existing_user_response.status_code == 200:
-            raise HTTPException(status_code=400, detail="Email already registered")
-        
-        # Create user in CRM backend
-        signup_response = requests.post(
-            f"{CRM_BASE_URL}/auth/signup",
-            json={"email": user.email, "password": user.password, "name": user.name},
-            headers={"x-api-key": CRM_API_KEY}
-        )
-        
-        if signup_response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Failed to create user")
-        
-        signup_data = signup_response.json()
-        
-        return {
-            "access_token": signup_data["access_token"],
-            "token_type": "bearer",
-            "user_name": signup_data["user_name"]
-        }
-        
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"CRM backend error: {str(e)}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
-
-@app.post("/auth/login", response_model=Token)
-def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
-    """User login endpoint"""
-    try:
-        # Authenticate user through CRM backend
-        login_response = requests.post(
-            f"{CRM_BASE_URL}/auth/login",
-            json={"email": user_credentials.email, "password": user_credentials.password},
-            headers={"x-api-key": CRM_API_KEY}
-        )
-        
-        if login_response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Incorrect email or password")
-        
-        login_data = login_response.json()
-        
-        return {
-            "access_token": login_data["access_token"],
-            "token_type": "bearer",
-            "user_name": login_data["user_name"]
-        }
-        
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"CRM backend error: {str(e)}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 # Helper function to make requests to CRM backend
 def make_crm_request(endpoint: str, method: str = "GET", data: dict = None):
