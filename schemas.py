@@ -1,11 +1,18 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+
+# Try to import EmailStr, fallback to str if not available
+try:
+    from pydantic import EmailStr
+    EmailType = EmailStr
+except ImportError:
+    EmailType = str
 
 # User schemas
 class UserBase(BaseModel):
     username: str
-    email: EmailStr
+    email: EmailType
     full_name: str
     role: str = "cashier"
 
