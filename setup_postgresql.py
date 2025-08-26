@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-PostgreSQL Setup Script for POS Backend
-This script helps set up PostgreSQL database for local development
-"""
 
 import os
 import sys
@@ -11,7 +7,6 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 def check_postgresql_installed():
-    """Check if PostgreSQL is installed"""
     try:
         result = subprocess.run(['psql', '--version'], capture_output=True, text=True)
         if result.returncode == 0:
@@ -26,9 +21,7 @@ def check_postgresql_installed():
         return False
 
 def create_database():
-    """Create the POS database"""
     try:
-        # Connect to PostgreSQL server
         conn = psycopg2.connect(
             host="localhost",
             port="5432",
@@ -38,14 +31,12 @@ def create_database():
         conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = conn.cursor()
         
-        # Check if database exists
         cursor.execute("SELECT 1 FROM pg_database WHERE datname='pos_db'")
         exists = cursor.fetchone()
         
         if exists:
             print("✅ Database 'pos_db' already exists")
         else:
-            # Create database
             cursor.execute("CREATE DATABASE pos_db")
             print("✅ Database 'pos_db' created successfully")
         
@@ -65,7 +56,6 @@ def create_database():
         return False
 
 def test_connection():
-    """Test connection to the POS database"""
     try:
         conn = psycopg2.connect(
             host="localhost",
@@ -89,7 +79,6 @@ def test_connection():
         return False
 
 def create_env_file():
-    """Create .env file with PostgreSQL configuration"""
     env_content = """# POS Backend Environment Variables
 
 # Database
@@ -120,7 +109,6 @@ def main():
     print("🚀 PostgreSQL Setup for POS Backend")
     print("=" * 50)
     
-    # Check if PostgreSQL is installed
     if not check_postgresql_installed():
         print("\n📥 To install PostgreSQL:")
         print("1. Download from: https://www.postgresql.org/download/")
@@ -131,15 +119,12 @@ def main():
     
     print("\n🔧 Setting up database...")
     
-    # Create database
     if not create_database():
         return
     
-    # Test connection
     if not test_connection():
         return
     
-    # Create .env file
     if not create_env_file():
         return
     

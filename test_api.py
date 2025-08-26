@@ -1,12 +1,10 @@
 import requests
 import json
 
-# Test configuration
 BASE_URL = "http://localhost:8001"
 API_KEY = "pos_secret_key"
 
 def test_health():
-    """Test health endpoint"""
     try:
         response = requests.get(f"{BASE_URL}/health")
         print(f"Health Check: {response.status_code}")
@@ -17,7 +15,6 @@ def test_health():
         return False
 
 def test_root():
-    """Test root endpoint"""
     try:
         response = requests.get(f"{BASE_URL}/")
         print(f"Root Endpoint: {response.status_code}")
@@ -28,7 +25,6 @@ def test_root():
         return False
 
 def test_card_balance():
-    """Test card balance endpoint"""
     try:
         headers = {"x-api-key": API_KEY}
         response = requests.get(f"{BASE_URL}/api/cards/4716000000000001/balance", headers=headers)
@@ -40,7 +36,6 @@ def test_card_balance():
         return False
 
 def test_reports_summary():
-    """Test reports summary endpoint"""
     try:
         headers = {"x-api-key": API_KEY}
         response = requests.get(f"{BASE_URL}/api/reports/summary", headers=headers)
@@ -52,7 +47,6 @@ def test_reports_summary():
         return False
 
 def test_customer_lookup():
-    """Test customer lookup endpoint"""
     try:
         headers = {"x-api-key": API_KEY}
         response = requests.get(f"{BASE_URL}/api/customers/CUST000001", headers=headers)
@@ -67,14 +61,12 @@ if __name__ == "__main__":
     print("Testing POS Backend API Endpoints...")
     print("=" * 50)
     
-    # Test basic endpoints
     health_ok = test_health()
     root_ok = test_root()
     
     if health_ok and root_ok:
         print("\n✅ Basic endpoints working!")
         
-        # Test API endpoints
         print("\nTesting API endpoints...")
         card_balance_ok = test_card_balance()
         reports_ok = test_reports_summary()

@@ -10,11 +10,8 @@ from dotenv import load_dotenv
 
 from database import SessionLocal, engine
 from models import Base
-from auth import get_current_active_user, get_db
-from auth_router import router as auth_router
-from schemas import StandardResponse
+from api import router
 
-# Load environment variables
 load_dotenv()
 
 app = FastAPI(
@@ -23,26 +20,54 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Create tables
 Base.metadata.create_all(bind=engine)
 
-# Include the authentication router
-app.include_router(auth_router, prefix="/api")
+app.include_router(router, prefix="/api")
 
-# CRM Backend URL for data operations
 CRM_BASE_URL = os.getenv("CRM_BASE_URL", "https://crm-n577.onrender.com")
 CRM_API_KEY = os.getenv("CRM_API_KEY", "mysecretkey")
 
-# Helper function to make requests to CRM backend
+class StandardResponse:
+    def __init__(self, status: str, message: str, data: Optional[dict] = None, robotRunId: Optional[str] = None):
+        self.status = status
+        self.timestamp = datetime.utcnow()
+        self.transactionId = str(uuid.uuid4())
+        self.robotRunId = robotRunId
+        self.message = message
+        self.data = data
+
+    def dict(self):
+        return {
+            "status": self.status,
+            "timestamp": self.timestamp.isoformat(),
+            "transactionId": self.transactionId,
+            "robotRunId": self.robotRunId,
+            "message": self.message,
+            "data": self.data
+        }
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+API_KEY = os.getenv("POS_API_KEY", "pos_secret_key")
+
+async def verify_api_key(x_api_key: str = Header(...)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return x_api_key
+
 def make_crm_request(endpoint: str, method: str = "GET", data: dict = None):
     url = f"{CRM_BASE_URL}{endpoint}"
     headers = {
@@ -65,36 +90,27 @@ def make_crm_request(endpoint: str, method: str = "GET", data: dict = None):
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"CRM backend error: {str(e)}")
 
-# POS API Endpoints - Now using JWT authentication
-
 @app.post("/api/cards/issue")
 async def issue_card(
     card_data: dict,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Issue a new card"""
     try:
-        # Call CRM backend to issue card
         result = make_crm_request("/cards/issue", "POST", card_data)
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Card issued successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to issue card: {str(e)}"
+            message=f"Failed to issue card: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -103,30 +119,23 @@ async def reload_card(
     card_id: str,
     reload_data: dict,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Reload card with amount"""
     try:
-        # Call CRM backend to reload card
         result = make_crm_request(f"/cards/{card_id}/reload", "POST", reload_data)
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Card reloaded successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to reload card: {str(e)}"
+            message=f"Failed to reload card: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -135,30 +144,23 @@ async def add_product(
     card_id: str,
     product_data: dict,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Add product to card"""
     try:
-        # Call CRM backend to add product
         result = make_crm_request(f"/cards/{card_id}/products", "POST", product_data)
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Product added successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to add product: {str(e)}"
+            message=f"Failed to add product: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -166,30 +168,23 @@ async def add_product(
 async def get_card_balance(
     card_id: str,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Get card balance"""
     try:
-        # Call CRM backend to get card balance
         result = make_crm_request(f"/cards/{card_id}/balance")
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Card balance retrieved successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to get card balance: {str(e)}"
+            message=f"Failed to get card balance: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -197,30 +192,23 @@ async def get_card_balance(
 async def simulate_payment(
     payment_data: dict,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Simulate payment"""
     try:
-        # Call CRM backend to simulate payment
         result = make_crm_request("/payment/simulate", "POST", payment_data)
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Payment simulated successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to simulate payment: {str(e)}"
+            message=f"Failed to simulate payment: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -228,30 +216,23 @@ async def simulate_payment(
 async def get_customer(
     customer_id: str,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Get customer information"""
     try:
-        # Call CRM backend to get customer
         result = make_crm_request(f"/customers/{customer_id}")
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Customer information retrieved successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to get customer: {str(e)}"
+            message=f"Failed to get customer: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -259,60 +240,46 @@ async def get_customer(
 async def get_card_transactions(
     card_id: str,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Get card transaction history"""
     try:
-        # Call CRM backend to get card transactions
         result = make_crm_request(f"/cards/{card_id}/transactions")
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Card transactions retrieved successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to get card transactions: {str(e)}"
+            message=f"Failed to get card transactions: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
 @app.get("/api/reports/summary")
 async def get_reports_summary(
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Get reports summary"""
     try:
-        # Call CRM backend to get reports summary
         result = make_crm_request("/reports/summary")
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Reports summary retrieved successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to get reports summary: {str(e)}"
+            message=f"Failed to get reports summary: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
@@ -320,51 +287,36 @@ async def get_reports_summary(
 async def simulate_card_tap(
     tap_data: dict,
     robotRunId: Optional[str] = None,
-    current_user = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    api_key: str = Depends(verify_api_key)
 ):
-    """Simulate card tap"""
     try:
-        # Call CRM backend to simulate card tap
         result = make_crm_request("/simulate/cardTap", "POST", tap_data)
         
         response = StandardResponse(
             status="success",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
             message="Card tap simulated successfully",
-            data=result
+            data=result,
+            robotRunId=robotRunId
         )
         return response.dict()
     except Exception as e:
         response = StandardResponse(
             status="error",
-            timestamp=datetime.utcnow(),
-            transactionId=str(uuid.uuid4()),
-            robotRunId=robotRunId,
-            message=f"Failed to simulate card tap: {str(e)}"
+            message=f"Failed to simulate card tap: {str(e)}",
+            robotRunId=robotRunId
         )
         return response.dict()
 
-# Health check endpoint
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "POS Backend", "timestamp": datetime.utcnow().isoformat()}
 
-# Root endpoint
 @app.get("/")
 async def root():
     return {
         "message": "POS Backend API",
         "version": "1.0.0",
-        "authentication": "JWT Bearer Token Required",
         "endpoints": [
-            "POST /api/auth/signup",
-            "POST /api/auth/login", 
-            "GET /api/auth/me",
-            "POST /api/auth/refresh",
-            "POST /api/auth/logout",
             "POST /api/cards/issue",
             "POST /api/cards/{id}/reload", 
             "POST /api/cards/{id}/products",
