@@ -1,0 +1,21 @@
+# Core FastAPI and ASGI server
+fastapi
+uvicorn
+
+# Database and ORM
+sqlalchemy
+psycopg2-binary
+
+# Environment variables
+python-dotenv
+
+# Data validation and serialization
+pydantic
+python-multipart
+
+# Authentication and security
+python-jose[cryptography]
+passlib[bcrypt]
+
+# HTTP requests
+requests 
